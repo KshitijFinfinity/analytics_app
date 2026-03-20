@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+:root {
+	--saas-bg: #f2f6fb;
+	--saas-surface: #ffffff;
+	--saas-border: #d8e2ee;
+	--saas-text: #0f172a;
+	--saas-accent: #2563eb;
+}
+
+* {
+	box-sizing: border-box;
+}
+
+html,
+body,
+#__next {
+	min-height: 100%;
+}
+
+body {
+	margin: 0;
+	background: radial-gradient(1200px 500px at 10% -10%, #e8f0ff 0%, transparent 60%), var(--saas-bg);
+	color: var(--saas-text);
+	font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+}
+
+.font-display {
+	font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
+	letter-spacing: -0.01em;
+}
+
+.glass-panel {
+	background: linear-gradient(145deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.9));
+	border: 1px solid var(--saas-border);
+	backdrop-filter: blur(8px);
+}
+
+.saas-card {
+	border-radius: 1rem;
+	border: 1px solid var(--saas-border);
+	background: var(--saas-surface);
+	box-shadow: 0 10px 30px rgba(15, 23, 42, 0.06);
+}
+
+.saas-primary-btn {
+	border: 0;
+	border-radius: 0.7rem;
+	background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+	color: #ffffff;
+	cursor: pointer;
+	transition: transform 140ms ease, box-shadow 180ms ease, filter 180ms ease;
+}
+
+.saas-primary-btn:hover {
+	transform: translateY(-1px);
+	box-shadow: 0 10px 24px rgba(37, 99, 235, 0.28);
+	filter: brightness(1.03);
+}
+
+.saas-primary-btn:active {
+	transform: translateY(0);
+}
+
+.saas-primary-btn:disabled {
+	opacity: 0.55;
+	cursor: not-allowed;
+	box-shadow: none;
+}
+
+.react-grid-layout {
+	position: relative;
+}
+
+.react-grid-item {
+	transition: transform 180ms ease;
+	will-change: transform;
+}
+
+.react-grid-item.react-draggable-dragging {
+	transition: none;
+	z-index: 20;
+}

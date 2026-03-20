@@ -1,0 +1,14 @@
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env.local
+
+  Running TypeScript ...
+  Creating an optimized production build ...
+✓ Compiled successfully in 3.9s
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/10) ...
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined.
+    at ignore-listed frames
+Error occurred prerendering page "/charts-analysis". Read more: https://nextjs.org/docs/messages/prerender-error
+Error: Element type is invalid: expected a string (for built-in components) or a class/function (for composite components) but got: undefined.
+    at ignore-listed frames
+⨯ Next.js build worker exited with code: 1 and signal: null

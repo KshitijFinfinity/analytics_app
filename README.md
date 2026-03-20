@@ -1,40 +1,90 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/pages/api-reference/create-next-app).
+# FluxLend - Frontend/Backend Workspace
 
-## Getting Started
+Project is now split into separate apps:
 
-First, run the development server:
+- `frontend/` -> Next.js UI
+- `dashboard-frontend/` -> standalone analytics dashboard UI
+- `backend/` -> Express + PostgreSQL analytics API
+
+## Run
+
+Backend:
 
 ```bash
+cd backend
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Frontend:
 
-You can start editing the page by modifying `pages/index.js`. The page auto-updates as you edit the file.
+```bash
+cd frontend
+npm install
+npm run dev
+```
 
-[API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) can be accessed on [http://localhost:3000/api/hello](http://localhost:3000/api/hello). This endpoint can be edited in `pages/api/hello.js`.
+Open `http://localhost:3000` (or the Next.js port shown in terminal).
 
-The `pages/api` directory is mapped to `/api/*`. Files in this directory are treated as [API routes](https://nextjs.org/docs/pages/building-your-application/routing/api-routes) instead of React pages.
+Standalone dashboard frontend:
 
-This project uses [`next/font`](https://nextjs.org/docs/pages/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+cd dashboard-frontend
+npm install
+npm run dev
+```
 
-## Learn More
+Open `http://localhost:3000` (or next available port) for the dashboard app.
 
-To learn more about Next.js, take a look at the following resources:
+## Optional Root Scripts
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn-pages-router) - an interactive Next.js tutorial.
+From workspace root:
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm run dev:backend
+npm run dev:frontend
+npm run dev:dashboard
+```
 
-## Deploy on Vercel
+## Product Flow
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+`Home -> Signup -> Login -> Dashboard -> Apply for Loan -> Loan Confirmation`
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/pages/building-your-application/deploying) for more details.
+Extended journeys:
+
+`Dashboard -> Eligibility Checker -> Loan Offers -> Apply`
+
+`Dashboard -> Application Status Tracker`
+
+`Dashboard -> Profile -> Update`
+
+## Key Features
+
+- Home, Signup, Login, Dashboard, Apply Loan (multi-step), Confirmation pages
+- Simulated auth and loan submission via `localStorage`
+- Multi-step application form:
+	- Step 1: Personal details
+	- Step 2: Employment details
+	- Step 3: Loan details
+	- Step 4: Review and submit
+- Analytics hook placeholders via `trackEvent(...)`
+- Extra event generators:
+	- View Loan Offers page and offer comparison
+	- Eligibility checker flow
+	- EMI calculator widget
+	- Notifications dropdown
+	- Support chat modal
+	- Application status tracker
+	- Profile update journey
+	- Delayed recommended offers loader
+
+## Structure
+
+- `frontend/pages/`
+- `dashboard-frontend/pages/`
+- `frontend/components/`
+- `frontend/hooks/`
+- `frontend/utils/analytics.js`
+- `backend/routes/`
+- `backend/controllers/`
+- `backend/services/`

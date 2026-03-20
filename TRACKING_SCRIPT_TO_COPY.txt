@@ -1,0 +1,27 @@
+COPY THIS INTO THE OTHER WEBSITE
+
+Option A: Basic embed (uses default endpoint inside analytics.js)
+<script src="https://YOUR_SCRIPT_HOST/analytics.js" data-project-id="YOUR_PROJECT_ID"></script>
+
+Option B: Custom endpoint override
+<script src="https://YOUR_SCRIPT_HOST/analytics.js" data-project-id="YOUR_PROJECT_ID" data-endpoint="https://YOUR_API_DOMAIN/track"></script>
+
+PLACEHOLDERS TO REPLACE
+1) YOUR_SCRIPT_HOST
+- What to put: Domain/path where analytics.js is publicly hosted.
+- Example: cdn.mycompany.com/tracker
+- Final example value: https://cdn.mycompany.com/tracker/analytics.js
+
+2) YOUR_PROJECT_ID
+- What to put: Project identifier from your analytics backend/database.
+- Example: loan_app_prod_001
+
+3) YOUR_API_DOMAIN (only for Option B)
+- What to put: Domain of your tracking API.
+- Example: api.mycompany.com
+- Final endpoint must be: https://api.mycompany.com/track
+
+WHERE TO PASTE
+- Plain HTML site: paste before </body>.
+- Next.js app: put in global layout or _document so it loads on every page.
+- React SPA: put in index.html (public) before </body>.

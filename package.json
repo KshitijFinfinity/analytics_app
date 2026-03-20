@@ -1,22 +1,16 @@
 {
-  "name": "analytics",
-  "version": "0.1.0",
+  "name": "analytics-workspace",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "next build",
-    "start": "next start",
-    "lint": "eslint"
-  },
-  "dependencies": {
-    "next": "16.1.6",
-    "react": "19.2.3",
-    "react-dom": "19.2.3"
-  },
-  "devDependencies": {
-    "@tailwindcss/postcss": "^4",
-    "eslint": "^9",
-    "eslint-config-next": "16.1.6",
-    "tailwindcss": "^4"
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build",
+    "start:frontend": "npm --prefix frontend run start",
+    "lint:frontend": "npm --prefix frontend run lint",
+    "dev:dashboard": "npm --prefix dashboard-frontend run dev",
+    "build:dashboard": "npm --prefix dashboard-frontend run build",
+    "start:dashboard": "npm --prefix dashboard-frontend run start",
+    "lint:dashboard": "npm --prefix dashboard-frontend run lint",
+    "dev:backend": "npm --prefix backend run dev",
+    "start:backend": "npm --prefix backend run start"
   }
 }
