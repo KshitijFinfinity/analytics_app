@@ -57,6 +57,7 @@ export default function App({ Component, pageProps }) {
       <Script
         src="https://diamond-proamateur-imputably.ngrok-free.dev/analytics.js"
         data-project-id="demo123"
+        data-endpoint="https://diamond-proamateur-imputably.ngrok-free.dev/api/track"
         strategy="afterInteractive"
       />
       <Layout>
