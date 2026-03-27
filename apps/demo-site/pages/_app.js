@@ -1,6 +1,7 @@
 import "@/styles/globals.css";
 import { useEffect } from "react";
 import { useRouter } from "next/router";
+import Script from "next/script";
 import { Manrope, Sora } from "next/font/google";
 import Layout from "@/components/Layout";
 import { trackEvent } from "@/utils/analytics";
@@ -53,6 +54,11 @@ export default function App({ Component, pageProps }) {
 
   return (
     <main className={`${manrope.variable} ${sora.variable}`}>
+      <Script
+        src="https://diamond-proamateur-imputably.ngrok-free.dev/analytics.js"
+        data-project-id="demo123"
+        strategy="afterInteractive"
+      />
       <Layout>
         <Component {...pageProps} />
       </Layout>

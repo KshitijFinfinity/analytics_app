@@ -4,7 +4,6 @@
   try {
     var USER_ID_KEY = "analytics_user_id";
     var SESSION_ID_KEY = "analytics_session_id";
-    var DEFAULT_ENDPOINT = "https://yourdomain.com/track";
     var RRWEB_CDN_URLS = [
       "https://cdn.jsdelivr.net/npm/rrweb@1/dist/record/rrweb-record.min.js",
       "https://unpkg.com/rrweb@1/dist/record/rrweb-record.min.js",
@@ -53,10 +52,14 @@
           return trimTrailingSlash(srcUrl.origin) + "/track";
         }
       } catch (_err) {
-        // Fall back to configured default.
+        // Fall through to page origin fallback.
       }
 
-      return DEFAULT_ENDPOINT;
+      try {
+        return trimTrailingSlash(window.location.origin) + "/track";
+      } catch (_err2) {
+        return "/track";
+      }
     }
 
     function deriveEndpoints(rawEndpoint) {
