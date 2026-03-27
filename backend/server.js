@@ -11,12 +11,14 @@ const app = express();
 const BASE_PORT = Number(process.env.PORT || 4001);
 const MAX_PORT_ATTEMPTS = 5;
 
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-  })
-);
+const corsOptions = {
+  origin: "*", // TEMP: allow all (we'll restrict later)
+  methods: ["GET", "POST", "OPTIONS"],
+  allowedHeaders: ["Content-Type"],
+};
+
+app.options("*", cors(corsOptions));
+app.use(cors(corsOptions));
 app.use(express.json({ limit: "40mb" }));
 
 app.get("/", (_req, res) => {
