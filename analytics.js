@@ -84,12 +84,31 @@
 
       try {
         var parsed = new URL(endpointUrl, window.location.href);
+        var pathName = String(parsed.pathname || "").replace(/\/+$/, "") || "/";
+        var altPath = "";
+
+        if (/^\/api\//i.test(pathName)) {
+          altPath = pathName.replace(/^\/api\//i, "/");
+        } else {
+          altPath = "/api" + (pathName.charAt(0) === "/" ? pathName : "/" + pathName);
+        }
+
+        if (altPath && altPath !== pathName) {
+          var alt = new URL(parsed.toString());
+          alt.pathname = altPath;
+          candidates.push(alt.toString());
+        }
+
         var isLocalHost = parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
         if (isLocalHost) {
+          var pathVariants = altPath && altPath !== pathName ? [pathName, altPath] : [pathName];
           for (var port = 4001; port <= 4006; port += 1) {
-            var fallback = new URL(parsed.toString());
-            fallback.port = String(port);
-            candidates.push(fallback.toString());
+            for (var j = 0; j < pathVariants.length; j += 1) {
+              var fallback = new URL(parsed.toString());
+              fallback.port = String(port);
+              fallback.pathname = pathVariants[j];
+              candidates.push(fallback.toString());
+            }
           }
         }
       } catch (_err) {

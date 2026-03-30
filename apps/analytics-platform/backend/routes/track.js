@@ -14,6 +14,9 @@ const {
 
 const router = express.Router();
 
+router.options("/track", (_req, res) => res.sendStatus(200));
+router.options("/session-record", (_req, res) => res.sendStatus(200));
+
 router.post("/track", trackEvent);
 router.post("/session-record", createSessionRecording);
 router.post("/frontend-error", createFrontendError);

@@ -15,10 +15,13 @@ const corsOptions = {
   origin: "*", // TEMP: allow all (we'll restrict later)
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type"],
+  optionsSuccessStatus: 200,
 };
 
-app.options("*", cors(corsOptions));
 app.use(cors(corsOptions));
+app.options("*", (_req, res) => {
+  res.sendStatus(200);
+});
 app.use(express.json({ limit: "40mb" }));
 
 app.get("/", (_req, res) => {
@@ -36,6 +39,7 @@ app.post("/session-record", (_req, _res, next) => {
 });
 
 app.use("/", trackRoutes);
+app.use("/api", trackRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/", errorAlertingRoutes);
 
