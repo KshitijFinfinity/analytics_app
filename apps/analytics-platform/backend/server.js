@@ -11,38 +11,54 @@ const app = express();
 const BASE_PORT = Number(process.env.PORT || 4001);
 const MAX_PORT_ATTEMPTS = 5;
 
-const corsOptions = {
-  origin: "*", // TEMP: allow all (we'll restrict later)
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type"],
-  optionsSuccessStatus: 200,
-};
 
-app.use(cors(corsOptions));
-app.options("*", (_req, res) => {
-  res.sendStatus(200);
+// Dynamic CORS middleware for all requests
+app.use((req, res, next) => {
+  res.header("Access-Control-Allow-Origin", req.headers.origin || "*");
+  res.header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS");
+  res.header("Access-Control-Allow-Headers", req.headers["access-control-request-headers"] || "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+  res.header("Access-Control-Allow-Credentials", "true");
+  if (req.method === "OPTIONS") {
+    return res.sendStatus(200);
+  }
+  next();
 });
+
 app.use(express.json({ limit: "40mb" }));
+
 
 app.get("/", (_req, res) => {
   res.json({ status: "ok", service: "analytics-backend" });
 });
 
-app.post("/track", (_req, _res, next) => {
-  console.log("track request received");
+
+// Logging middleware for debugging
+app.post("/track", (req, res, next) => {
+  console.log("track request received", req.body);
   next();
 });
 
-app.post("/session-record", (_req, _res, next) => {
-  console.log("session record received");
+app.post("/session-record", (req, res, next) => {
+  console.log("session record received", req.body);
   next();
 });
+
 
 app.use("/", trackRoutes);
 app.use("/api", trackRoutes);
 app.use("/api/ingest", trackRoutes);
 app.use("/analytics", analyticsRoutes);
 app.use("/", errorAlertingRoutes);
+
+// Global error handler for robust error reporting
+app.use((err, req, res, next) => {
+  console.error("Unhandled error:", err);
+  res.status(err.status || 500).json({
+    error: true,
+    message: err.message || "Internal Server Error",
+    details: process.env.NODE_ENV === "development" ? err.stack : undefined,
+  });
+});
 
 function startServer(port, attemptsLeft) {
   const server = app.listen(port, () => {
