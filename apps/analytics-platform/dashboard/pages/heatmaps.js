@@ -6,62 +6,41 @@ import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
 
-const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
-const FALLBACK_BACKEND_BASES = [4001, 4002, 4003, 4004, 4005, 4006, 4000].map(
-  (port) => `http://localhost:${port}`
-);
-const BACKEND_BASES = [CONFIGURED_BACKEND_BASE, ...FALLBACK_BACKEND_BASES].filter(
-  (base, index, values) => Boolean(base) && values.indexOf(base) === index
-);
 
-let resolvedBackendBase = null;
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 
 function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+
 async function fetchFromBackend(path, options = {}) {
   const timeout = 10000;
-  const candidateBases = [resolvedBackendBase, ...BACKEND_BASES].filter(
-    (base, index, values) => Boolean(base) && values.indexOf(base) === index
-  );
-
   let lastError = null;
-
-  for (let attempt = 0; attempt < 3; attempt += 1) {
-    for (const base of candidateBases) {
-      let timeoutId;
-
-      try {
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        const response = await fetch(`${base}/analytics${path}`, {
-          ...options,
-          signal: controller.signal,
-        });
-
-        if (response.ok) {
-          resolvedBackendBase = base;
-          return await response.json();
-        }
-
-        lastError = new Error(`Server ${base} returned status ${response.status}`);
-        console.warn(lastError.message);
-      } catch (error) {
-        lastError = error;
-        console.warn(`Failed to fetch from ${base}:`, error.message);
-      } finally {
-        clearTimeout(timeoutId);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let timeoutId;
+    try {
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(`${BASE_URL}/api${path}`, {
+        ...options,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        const payload = await response.json().catch(() => ({}));
+        throw new Error(payload.error || payload.message || `Server returned ${response.status}`);
       }
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    if (attempt < 2) {
-      await sleep(750);
+    if (attempt < 1) {
+      await sleep(350);
     }
   }
-
-  throw lastError || new Error("Could not reach any backend server");
+  throw lastError || new Error("Could not reach backend");
 }
 
 export default function HeatmapsPage() {

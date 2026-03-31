@@ -239,8 +239,8 @@ export default function SettingsPage() {
             <h2 className="font-display text-lg font-semibold">General</h2>
             <p className="mt-2 text-sm text-slate-600">Environment: Local development</p>
             <p className="text-sm text-slate-600">Analytics API: https://analyticsapp2-production.up.railway.app/api</p>
-            <p className="text-sm text-slate-600">Website app: http://localhost:3000</p>
-            <p className="text-sm text-slate-600">Dashboard app: http://localhost:3001</p>
+            <p className="text-sm text-slate-600">Website app: https://your-production-website-url.com</p>
+            <p className="text-sm text-slate-600">Dashboard app: https://your-production-dashboard-url.com</p>
           </article>
 
           <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
