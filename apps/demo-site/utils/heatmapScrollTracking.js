@@ -1,6 +1,6 @@
 import { getOrCreateUserId, getOrCreateSessionId } from "./sessionMonitoring";
 
-const BACKEND_BASES = ["http://localhost:4001", "http://localhost:4002", "http://localhost:4003"];
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 const SCROLL_THROTTLE_MS = 2000; // Throttle scroll updates to every 2 seconds
 const SCROLL_DEPTH_THRESHOLD = 5; // Only record if depth changes by 5%
 
@@ -46,21 +46,16 @@ function getViewportInfo() {
 
 async function sendScrollEvent(scrollData) {
   try {
-    for (const base of BACKEND_BASES) {
-      try {
-        const response = await fetch(`${base}/heatmap/scroll`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(scrollData),
-        });
-
-        if (response.ok) {
-          return true;
-        }
-      } catch {
-        continue;
+    try {
+      const response = await fetch(`${BASE_URL}/api/heatmap/scroll`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(scrollData),
+      });
+      if (response.ok) {
+        return true;
       }
-    }
+    } catch {}
   } catch (error) {
     console.error("Failed to send scroll event:", error);
   }

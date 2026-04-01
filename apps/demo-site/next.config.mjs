@@ -19,32 +19,32 @@ const nextConfig = {
     return [
       {
         source: "/analytics-dashboard",
-        destination: "http://localhost:3001/",
+        destination: "https://your-production-dashboard-url.com/",
         permanent: false,
       },
       {
         source: "/charts-analysis",
-        destination: "http://localhost:3001/charts-analysis",
+        destination: "https://your-production-dashboard-url.com/charts-analysis",
         permanent: false,
       },
       {
         source: "/funnels",
-        destination: "http://localhost:3001/funnels",
+        destination: "https://your-production-dashboard-url.com/funnels",
         permanent: false,
       },
       {
         source: "/session-replays",
-        destination: "http://localhost:3001/session-replays",
+        destination: "https://your-production-dashboard-url.com/session-replays",
         permanent: false,
       },
       {
         source: "/errors",
-        destination: "http://localhost:3001/errors",
+        destination: "https://your-production-dashboard-url.com/errors",
         permanent: false,
       },
       {
         source: "/settings",
-        destination: "http://localhost:3001/settings",
+        destination: "https://your-production-dashboard-url.com/settings",
         permanent: false,
       },
     ];

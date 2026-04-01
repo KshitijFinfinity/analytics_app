@@ -18,7 +18,7 @@ import {
   YAxis,
 } from "recharts";
 
-const ANALYTICS_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE || "http://localhost:4001";
+const ANALYTICS_BASE = "https://analyticsapp2-production.up.railway.app";
 const GROUP_BY_OPTIONS = ["event_name", "page", "user_id"];
 const CHART_TYPES = ["line", "bar", "pie", "area"];
 const PIE_COLORS = ["#0f172a", "#0ea5e9", "#10b981", "#f59e0b", "#ef4444", "#3b82f6", "#14b8a6"];

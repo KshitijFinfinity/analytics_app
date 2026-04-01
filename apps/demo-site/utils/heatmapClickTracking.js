@@ -1,6 +1,6 @@
 import { getOrCreateUserId, getOrCreateSessionId } from "./sessionMonitoring";
 
-const BACKEND_BASES = ["http://localhost:4001", "http://localhost:4002", "http://localhost:4003"];
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 const BATCH_MAX_EVENTS = 50;
 const BATCH_FLUSH_INTERVAL_MS = 5000;
 
@@ -115,22 +115,17 @@ async function flushClickBatch() {
   clickBatch = [];
 
   try {
-    for (const base of BACKEND_BASES) {
-      try {
-        const response = await fetch(`${base}/heatmap/click`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ events: batch }),
-          keepalive: true,
-        });
-
-        if (response.ok) {
-          return;
-        }
-      } catch {
-        continue;
+    try {
+      const response = await fetch(`${BASE_URL}/api/heatmap/click`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: batch }),
+        keepalive: true,
+      });
+      if (response.ok) {
+        return;
       }
-    }
+    } catch {}
   } catch (error) {
     console.error("Failed to flush click batch:", error);
     clickBatch = batch;
@@ -144,7 +139,7 @@ function flushClickBatchOnUnload() {
 
   const payload = JSON.stringify({ events: clickBatch });
   navigator.sendBeacon(
-    `${BACKEND_BASES[0]}/heatmap/click`,
+    `${BASE_URL}/api/heatmap/click`,
     new Blob([payload], { type: "application/json" })
   );
   clickBatch = [];

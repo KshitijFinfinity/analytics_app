@@ -31,13 +31,7 @@ export default function DashboardPage() {
     return <p className="text-sm text-slate-600">Loading dashboard...</p>;
   }
 
-  const loadRecommendations = () => {
-    setLoadingRecommendations(true);
-    setTimeout(() => {
-      const offers = [
-        { id: "rec-1", title: "Instant Flexi Loan", amount: "INR 4,00,000" },
-        { id: "rec-2", title: "Low EMI Personal Loan", amount: "INR 2,50,000" },
-      ];
+  // ...existing code...
       setRecommendedOffers(offers);
       setLoadingRecommendations(false);
       trackEvent("recommendations_loaded", { count: offers.length });

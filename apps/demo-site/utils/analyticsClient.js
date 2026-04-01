@@ -1,14 +1,7 @@
 import { getStoredUserId } from "@/utils/userIdentity";
 
-const TRACK_ENDPOINT = process.env.NEXT_PUBLIC_ANALYTICS_ENDPOINT || "http://localhost:4001/track";
-const FALLBACK_ENDPOINTS = [
-  "http://localhost:4001/track",
-  "http://localhost:4002/track",
-  "http://localhost:4003/track",
-  "http://localhost:4004/track",
-  "http://localhost:4005/track",
-  "http://localhost:4006/track",
-];
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const TRACK_ENDPOINT = `${BASE_URL}/api/track`;
 const PROJECT_ID = process.env.NEXT_PUBLIC_ANALYTICS_PROJECT_ID || "8b2b11d0-ad4f-4d90-b046-aacb789f2ba3";
 const USER_ID_KEY = "user_id";
 const SESSION_ID_KEY = "session_id";
@@ -53,31 +46,20 @@ const analytics = {
       timestamp: new Date().toISOString(),
     };
 
-    const endpoints = [TRACK_ENDPOINT, ...FALLBACK_ENDPOINTS].filter(
-      (endpoint, index, list) => Boolean(endpoint) && list.indexOf(endpoint) === index
-    );
-
-    for (const endpoint of endpoints) {
-      try {
-        const response = await fetch(endpoint, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(payload),
-        });
-
-        if (!response.ok) {
-          continue;
-        }
-
-        return;
-      } catch {
-        continue;
+    try {
+      const response = await fetch(TRACK_ENDPOINT, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        throw new Error("Analytics track failed: backend error");
       }
+    } catch (err) {
+      console.error("Analytics track failed:", err);
     }
-
-    console.error("Analytics track failed: no backend endpoint reachable");
   },
 };
 

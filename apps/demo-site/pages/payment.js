@@ -5,7 +5,7 @@ import { trackEvent } from "@/utils/analytics";
 
 const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
 const FALLBACK_BACKEND_BASES = [4001, 4002, 4003, 4004, 4005, 4006].map(
-  (port) => `http://localhost:${port}`
+  (port) => `https://your-production-domain.com:${port}`
 );
 const BACKEND_BASES = [CONFIGURED_BACKEND_BASE, ...FALLBACK_BACKEND_BASES].filter(
   (base, index, values) => Boolean(base) && values.indexOf(base) === index

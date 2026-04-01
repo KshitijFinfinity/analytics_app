@@ -4,14 +4,7 @@ const RECORD_PATH = "/session-record";
 const ERROR_PATH = "/frontend-error";
 const DEAD_CLICK_PATH = "/dead-click";
 const DEAD_CLICK_DELAY_MS = 1000;
-const BACKEND_BASES = [
-  "http://localhost:4001",
-  "http://localhost:4002",
-  "http://localhost:4003",
-  "http://localhost:4004",
-  "http://localhost:4005",
-  "http://localhost:4006",
-];
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 const RRWEB_CDN_URLS = [
   "https://cdn.jsdelivr.net/npm/rrweb@1/dist/record/rrweb-record.min.js",
   "https://unpkg.com/rrweb@1/dist/record/rrweb-record.min.js",
@@ -131,27 +124,20 @@ function startFreshSession() {
 
 async function postWithFallback(path, payload, options = {}) {
   const keepalive = Boolean(options.keepalive);
-
-  for (const base of BACKEND_BASES) {
-    try {
-      const response = await fetch(`${base}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive,
-      });
-
-      if (!response.ok) {
-        continue;
-      }
-
-      return true;
-    } catch {
-      continue;
+  try {
+    const response = await fetch(`${BASE_URL}/api${path}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive,
+    });
+    if (!response.ok) {
+      return false;
     }
+    return true;
+  } catch {
+    return false;
   }
-
-  return false;
 }
 
 function getCssSelector(el) {

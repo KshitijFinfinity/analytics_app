@@ -1,13 +1,5 @@
-const CONFIGURED_BACKEND_BASE = process.env.NEXT_PUBLIC_ANALYTICS_BASE;
-const FALLBACK_BACKEND_BASES = [4001, 4002, 4003, 4004, 4005, 4006, 4000].map(
-  (port) => `http://localhost:${port}`
-);
 
-const BACKEND_BASES = [CONFIGURED_BACKEND_BASE, ...FALLBACK_BACKEND_BASES].filter(
-  (base, index, values) => Boolean(base) && values.indexOf(base) === index
-);
-
-let resolvedBackendBase = null;
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 const GET_CACHE_TTL_MS = 15000;
 const getResponseCache = new Map();
 
@@ -43,49 +35,35 @@ export async function fetchAnalytics(path, options = {}) {
   }
 
   const timeout = Number(options.timeout || 10000);
-  const attempts = Number(options.attempts || 2);
-  const candidateBases = [resolvedBackendBase, ...BACKEND_BASES].filter(
-    (base, index, values) => Boolean(base) && values.indexOf(base) === index
-  );
-
   let lastError = null;
-
-  for (let attempt = 0; attempt < attempts; attempt += 1) {
-    for (const base of candidateBases) {
-      let timeoutId;
-      try {
-        const controller = new AbortController();
-        timeoutId = setTimeout(() => controller.abort(), timeout);
-
-        const response = await fetch(`${base}/analytics${path}`, {
-          ...options,
-          signal: controller.signal,
-        });
-
-        if (!response.ok) {
-          lastError = new Error(`Server ${base} returned status ${response.status}`);
-          continue;
-        }
-
-        resolvedBackendBase = base;
-        const data = await response.json();
-        if (cacheKey) {
-          getResponseCache.set(cacheKey, { data, timestamp: Date.now() });
-        }
-        return data;
-      } catch (error) {
-        lastError = error;
-      } finally {
-        clearTimeout(timeoutId);
+  for (let attempt = 0; attempt < 2; attempt += 1) {
+    let timeoutId;
+    try {
+      const controller = new AbortController();
+      timeoutId = setTimeout(() => controller.abort(), timeout);
+      const response = await fetch(`${BASE_URL}/api${path}`, {
+        ...options,
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        lastError = new Error(`Server returned status ${response.status}`);
+        continue;
       }
+      const data = await response.json();
+      if (cacheKey) {
+        getResponseCache.set(cacheKey, { data, timestamp: Date.now() });
+      }
+      return data;
+    } catch (error) {
+      lastError = error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    if (attempt < attempts - 1) {
+    if (attempt < 1) {
       await sleep(500);
     }
   }
-
-  throw lastError || new Error("Could not reach any backend server");
+  throw lastError || new Error("Could not reach backend server");
 }
 
 export function toQuery(params) {

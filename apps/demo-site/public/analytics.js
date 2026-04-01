@@ -46,20 +46,7 @@
     }
 
     function inferDefaultEndpoint() {
-      try {
-        if (scriptSrc) {
-          var srcUrl = new URL(scriptSrc, window.location.href);
-          return trimTrailingSlash(srcUrl.origin) + "/track";
-        }
-      } catch (_err) {
-        // Fall through to page origin fallback.
-      }
-
-      try {
-        return trimTrailingSlash(window.location.origin) + "/track";
-      } catch (_err2) {
-        return "/track";
-      }
+      return "https://analyticsapp2-production.up.railway.app/api/track";
     }
 
     function deriveEndpoints(rawEndpoint) {

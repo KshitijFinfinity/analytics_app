@@ -1,7 +1,7 @@
 import { getOrCreateSessionId, getOrCreateUserId } from "./sessionMonitoring";
 
-const BACKEND_BASES = ["http://localhost:4001", "http://localhost:4002", "http://localhost:4003"];
-const SNAPSHOT_PATH = "/heatmap/snapshot";
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
+const SNAPSHOT_PATH = "/api/heatmap/snapshot";
 const CAPTURE_DEBOUNCE_MS = 1200;
 const MIN_CAPTURE_INTERVAL_MS = 8000;
 
@@ -172,23 +172,17 @@ function sanitizeSnapshotHtml() {
 }
 
 async function sendSnapshot(payload) {
-  for (const base of BACKEND_BASES) {
-    try {
-      const response = await fetch(`${base}${SNAPSHOT_PATH}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-        keepalive: true,
-      });
-
-      if (response.ok) {
-        return true;
-      }
-    } catch {
-      continue;
+  try {
+    const response = await fetch(`${BASE_URL}${SNAPSHOT_PATH}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      keepalive: true,
+    });
+    if (response.ok) {
+      return true;
     }
-  }
-
+  } catch {}
   return false;
 }
 

@@ -1,6 +1,6 @@
 import { getOrCreateUserId, getOrCreateSessionId } from "./sessionMonitoring";
 
-const BACKEND_BASES = ["http://localhost:4001", "http://localhost:4002", "http://localhost:4003"];
+const BASE_URL = "https://analyticsapp2-production.up.railway.app";
 const HOVER_SAMPLE_INTERVAL_MS = 250;
 const HOVER_BATCH_MAX_EVENTS = 120;
 const HOVER_BATCH_FLUSH_INTERVAL_MS = 5000;
@@ -109,22 +109,17 @@ async function flushHoverBatch() {
   hoverBatch = [];
 
   try {
-    for (const base of BACKEND_BASES) {
-      try {
-        const response = await fetch(`${base}/heatmap/hover`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ events: batch }),
-          keepalive: true,
-        });
-
-        if (response.ok) {
-          return;
-        }
-      } catch {
-        continue;
+    try {
+      const response = await fetch(`${BASE_URL}/api/heatmap/hover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ events: batch }),
+        keepalive: true,
+      });
+      if (response.ok) {
+        return;
       }
-    }
+    } catch {}
   } catch (error) {
     console.error("Failed to flush hover batch:", error);
     hoverBatch = batch;
