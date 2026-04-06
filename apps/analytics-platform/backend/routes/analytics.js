@@ -1091,9 +1091,15 @@ router.get("/events", async (req, res) => {
           .map((item) => item.trim())
           .filter(Boolean)
       : [];
+    const projectId = String(req.query.project_id || "").trim();
 
     const whereParts = [];
     const values = [];
+
+    if (projectId) {
+      values.push(projectId);
+      whereParts.push(`project_id = $${values.length}`);
+    }
 
     if (selectedEvents.length > 0) {
       values.push(selectedEvents);

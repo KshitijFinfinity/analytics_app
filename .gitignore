@@ -45,3 +45,7 @@ next-env.d.ts
 # demo/example website folders to exclude
 /frontend/
 /frontend
+
+# local demo testing sites (do not push)
+/apps/demo-site/
+/apps/demo-site-standalone/

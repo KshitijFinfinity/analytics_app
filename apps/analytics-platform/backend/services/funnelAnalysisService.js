@@ -203,7 +203,7 @@ function calculateStepMetrics(stepNames, userSets) {
   });
 }
 
-async function analyzeFunnel({ steps, mode, analysis_mode, window_hours }) {
+async function analyzeFunnel({ steps, mode, analysis_mode, window_hours, project_id }) {
   await ensureFunnelTables();
 
   const normalizedSteps = normalizeSteps(steps);
@@ -214,17 +214,26 @@ async function analyzeFunnel({ steps, mode, analysis_mode, window_hours }) {
   const normalizedMode = normalizeMode(mode);
   const normalizedAnalysisMode = normalizeAnalysisMode(analysis_mode);
   const normalizedWindowHours = normalizeWindowHours(window_hours);
+  const normalizedProjectId = String(project_id || "").trim();
   const windowMs = normalizedWindowHours * 60 * 60 * 1000;
   const stepNames = normalizedSteps.map((step) => step.event_name);
+
+  const whereParts = [`event_name = ANY($1::text[])`];
+  const values = [stepNames];
+
+  if (normalizedProjectId) {
+    values.push(normalizedProjectId);
+    whereParts.push(`project_id = $${values.length}`);
+  }
 
   const result = await pool.query(
     `
       SELECT user_id, session_id, event_name, created_at
       FROM events
-      WHERE event_name = ANY($1::text[])
+      WHERE ${whereParts.join(" AND ")}
       ORDER BY created_at ASC
     `,
-    [stepNames]
+    values
   );
 
   const groups = new Map();

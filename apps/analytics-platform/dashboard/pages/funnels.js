@@ -34,6 +34,7 @@ function formatDurationMs(value) {
 export default function FunnelsPage() {
   const router = useRouter();
   const { addWidgetToDashboard } = useDashboard();
+  const [projectId, setProjectId] = useState("");
   const [eventOptions, setEventOptions] = useState([]);
   const [funnelBuilder, setFunnelBuilder] = useState({
     id: "",
@@ -53,6 +54,27 @@ export default function FunnelsPage() {
   const [dragIndex, setDragIndex] = useState(null);
   const [dragOverIndex, setDragOverIndex] = useState(null);
   const [metricsTab, setMetricsTab] = useState("conversion");
+
+  useEffect(() => {
+    if (!router.isReady) return;
+
+    let next = String(router.query.project_id || "").trim();
+    if (!next && typeof window !== "undefined") {
+      next = String(window.localStorage.getItem("analytics_active_project_id") || "").trim();
+    }
+    if (next) {
+      setProjectId(next);
+    }
+  }, [router.isReady, router.query.project_id]);
+
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    if (!projectId) {
+      window.localStorage.removeItem("analytics_active_project_id");
+      return;
+    }
+    window.localStorage.setItem("analytics_active_project_id", projectId);
+  }, [projectId]);
 
   useEffect(() => {
     let rawPrefill = String(router.query.prefillSteps || "").trim();
@@ -91,8 +113,9 @@ export default function FunnelsPage() {
   useEffect(() => {
     async function loadEventOptionsAndFunnels() {
       try {
+        const projectQuery = projectId ? `&project_id=${encodeURIComponent(projectId)}` : "";
         const [eventsResponse, funnelsResponse] = await Promise.all([
-          fetch(`${ANALYTICS_BASE}/api/events?groupBy=event_name`),
+          fetch(`${ANALYTICS_BASE}/api/events?groupBy=event_name${projectQuery}`),
           fetch(`${ANALYTICS_BASE}/api/funnels`),
         ]);
 
@@ -114,7 +137,7 @@ export default function FunnelsPage() {
     }
 
     loadEventOptionsAndFunnels();
-  }, []);
+  }, [projectId]);
 
   async function runFunnelAnalysis(config) {
     setFunnelLoading(true);
@@ -129,6 +152,7 @@ export default function FunnelsPage() {
           mode: config.mode,
           analysis_mode: config.analysis_mode,
           window_hours: Number(config.window_hours || 24),
+          project_id: projectId || undefined,
         }),
       });
 
@@ -355,6 +379,17 @@ export default function FunnelsPage() {
             </div>
 
             <div className="space-y-4 flex-1 overflow-y-auto pr-1 pb-4">
+              <div className="space-y-1.5">
+                <label className="text-xs font-semibold text-slate-700">Project ID Filter</label>
+                <input
+                  type="text"
+                  value={projectId}
+                  onChange={(e) => setProjectId(e.target.value)}
+                  className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 outline-none"
+                  placeholder="e.g. test-cervicare"
+                />
+              </div>
+
               <div className="space-y-1.5">
                 <label className="text-xs font-semibold text-slate-700">Funnel Name</label>
                 <input
