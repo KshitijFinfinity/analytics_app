@@ -7,7 +7,7 @@ OPTION A: HOSTED TRACKER FILE (recommended)
 Paste before </body>:
 
 <script
-	src="https://YOUR_SCRIPT_HOST/analytics.js"
+	src="https://YOUR_SCRIPT_HOST/sdk.js"
 	data-project-id="YOUR_PROJECT_ID"
 	data-endpoint="https://YOUR_BACKEND_DOMAIN/api/track"
 ></script>
@@ -86,4 +86,9 @@ PLACEHOLDERS
 - Production example: https://analyticsapp2-production.up.railway.app
 
 3) YOUR_SCRIPT_HOST (Option A only)
-- Host where analytics.js is publicly accessible.
+- Host where sdk.js is publicly accessible.
+
+ANTI-BLOCKER NOTE
+
+- If your browser/adblock blocks common names like analytics.js, use neutral filenames such as sdk.js, app-core.js, or site-runtime.js.
+- This repo includes tracker/sdk.js for that purpose.

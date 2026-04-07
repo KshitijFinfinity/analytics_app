@@ -116,7 +116,7 @@ function buildHostedSnippet({ projectId, scriptHost, backendBase }) {
   const safeBackendBase = trimTrailingSlash(backendBase || "https://your-backend-domain.com");
   return [
     "<script",
-    `  src=\"${safeScriptHost}/analytics.js\"`,
+    `  src=\"${safeScriptHost}/sdk.js\"`,
     `  data-project-id=\"${safeProjectId}\"`,
     `  data-endpoint=\"${safeBackendBase}/api/track\"`,
     "></script>",

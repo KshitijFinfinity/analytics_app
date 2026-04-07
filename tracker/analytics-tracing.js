@@ -2,7 +2,7 @@
 (function () {
   var PROJECT_ID = "YOUR_PROJECT_ID"; // <-- Replace with your project ID
   var ENDPOINT = "https://analyticsapp2-production.up.railway.app/api/track";
-  var SCRIPT_URL = "https://analyticsapp2-production.up.railway.app/analytics.js";
+  var SCRIPT_URL = "https://analyticsapp2-production.up.railway.app/sdk.js";
 
   if (window.__analyticsTrackerInitByProject && window.__analyticsTrackerInitByProject[PROJECT_ID]) return;
   window.__analyticsTrackerInitByProject = window.__analyticsTrackerInitByProject || {};
