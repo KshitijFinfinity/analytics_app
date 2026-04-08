@@ -9,6 +9,7 @@ const errorAlertingRoutes = require("./routes/errorAlerting");
 
 const app = express();
 const PORT = process.env.PORT || 4001;
+const trackerDir = path.join(__dirname, "..", "..", "..", "tracker");
 
 // CORS
 const corsOptions = {
@@ -43,6 +44,23 @@ app.use((req, res, next) => {
 app.use("/api", trackRoutes);
 app.use("/api", analyticsRoutes);
 app.use("/api", errorAlertingRoutes);
+
+// Serve tracker scripts at stable root URLs for easy third-party embeds.
+app.get("/sdk.js", (_req, res) => {
+  res.type("application/javascript");
+  res.sendFile(path.join(trackerDir, "sdk.js"));
+});
+
+// Backward compatibility for older integrations.
+app.get("/analytics.js", (_req, res) => {
+  res.type("application/javascript");
+  res.sendFile(path.join(trackerDir, "analytics.js"));
+});
+
+app.get("/analytics-tracing.js", (_req, res) => {
+  res.type("application/javascript");
+  res.sendFile(path.join(trackerDir, "analytics-tracing.js"));
+});
 
 // 404
 app.use((req, res) => {
