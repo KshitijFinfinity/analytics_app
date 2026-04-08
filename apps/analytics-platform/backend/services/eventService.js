@@ -32,6 +32,8 @@ async function ensureEventsTable() {
     // before project-aware tracking was introduced.
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS id UUID`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS project_id TEXT`);
+    await pool.query(`ALTER TABLE events DROP CONSTRAINT IF EXISTS events_project_id_fkey`);
+    await pool.query(`ALTER TABLE events ALTER COLUMN project_id TYPE TEXT USING project_id::text`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS user_id TEXT`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS session_id TEXT`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_name TEXT`);
