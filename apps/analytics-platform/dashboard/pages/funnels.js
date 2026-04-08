@@ -688,9 +688,15 @@ export default function FunnelsPage() {
           </div>
           
           {filteredSavedFunnels.length === 0 ? (
-            <div className="py-12 border-2 border-dashed border-slate-100 rounded-xl text-center flex flex-col items-center">
-              <Icons.Search className="w-8 h-8 text-slate-300 mb-3" />
-              <p className="text-slate-500 font-medium text-sm">No saved funnels</p>
+            <div className="py-12 border-2 border-dashed border-slate-100 rounded-xl text-center flex flex-col items-center gap-3">
+              <Icons.Search className="w-8 h-8 text-slate-300" />
+              <div>
+                <p className="text-slate-700 font-medium text-sm">No saved funnels yet</p>
+                <p className="mt-1 text-xs text-slate-500">Build one in the funnel editor above and click Save.</p>
+              </div>
+              <Button variant="secondary" size="sm" onClick={createNewFunnel}>
+                Start a new funnel
+              </Button>
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
