@@ -28,11 +28,24 @@ async function ensureEventsTable() {
 
     await pool.query(createTableQuery);
 
+    // Backfill missing columns for older deployments where `events` existed
+    // before project-aware tracking was introduced.
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS id UUID`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS project_id TEXT`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS user_id TEXT`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS session_id TEXT`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS event_name TEXT`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS page TEXT`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS properties JSONB DEFAULT '{}'::jsonb`);
+    await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ DEFAULT NOW()`);
+    await pool.query(`UPDATE events SET project_id = 'legacy' WHERE project_id IS NULL OR TRIM(project_id) = ''`);
+
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS country TEXT`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS city TEXT`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS region TEXT`);
     await pool.query(`ALTER TABLE events ADD COLUMN IF NOT EXISTS timezone TEXT`);
 
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_events_project_id ON events(project_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_events_created_at ON events(created_at)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_events_event_name ON events(event_name)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_events_page ON events(page)`);
