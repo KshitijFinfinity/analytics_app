@@ -87,6 +87,17 @@ async function ensureTables() {
       message TEXT NOT NULL,
       stack TEXT,
       page TEXT,
+      page_url TEXT,
+      page_path TEXT,
+      source_file TEXT,
+      line_number INTEGER,
+      column_number INTEGER,
+      error_type TEXT,
+      user_agent TEXT,
+      resolved BOOLEAN NOT NULL DEFAULT FALSE,
+      resolved_at TIMESTAMPTZ,
+      resolved_by TEXT,
+      resolution_note TEXT,
       timestamp TIMESTAMPTZ,
       created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
     )
@@ -95,6 +106,61 @@ async function ensureTables() {
   await pool.query(`
     ALTER TABLE frontend_errors
     ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS page_url TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS page_path TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS source_file TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS line_number INTEGER
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS column_number INTEGER
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS error_type TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS user_agent TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS resolved_by TEXT
+  `);
+
+  await pool.query(`
+    ALTER TABLE frontend_errors
+    ADD COLUMN IF NOT EXISTS resolution_note TEXT
   `);
 
   await pool.query(`
@@ -118,6 +184,8 @@ async function ensureTables() {
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_frontend_errors_session_user ON frontend_errors(session_id, user_id)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_frontend_errors_message ON frontend_errors(message)`);
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_frontend_errors_error_time ON frontend_errors((COALESCE(timestamp, created_at)))`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_frontend_errors_page_path ON frontend_errors(page_path)`);
+    await pool.query(`CREATE INDEX IF NOT EXISTS idx_frontend_errors_resolved ON frontend_errors(resolved)`);
 
     await pool.query(`CREATE INDEX IF NOT EXISTS idx_dead_clicks_session_user_time ON dead_clicks(session_id, user_id, COALESCE(timestamp, created_at))`);
   })();
@@ -187,15 +255,62 @@ async function insertSessionRecordingBatch({
   await pool.query(query, values);
 }
 
-async function insertFrontendError({ user_id, session_id, message, stack, page, timestamp }) {
+async function insertFrontendError({
+  user_id,
+  session_id,
+  message,
+  stack,
+  page,
+  page_url,
+  page_path,
+  source_file,
+  line_number,
+  column_number,
+  error_type,
+  user_agent,
+  timestamp,
+}) {
   await ensureTables();
 
   const query = `
-    INSERT INTO frontend_errors (id, user_id, session_id, message, stack, page, timestamp)
-    VALUES ($1, $2, $3, $4, $5, $6, $7::timestamptz)
+    INSERT INTO frontend_errors (
+      id,
+      user_id,
+      session_id,
+      message,
+      stack,
+      page,
+      page_url,
+      page_path,
+      source_file,
+      line_number,
+      column_number,
+      error_type,
+      user_agent,
+      timestamp
+    )
+    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14::timestamptz)
   `;
 
-  const values = [uuidv4(), String(user_id || ""), String(session_id || ""), String(message || ""), stack || null, page || null, timestamp || null];
+  const normalizedLine = Number.isFinite(Number(line_number)) ? Number(line_number) : null;
+  const normalizedColumn = Number.isFinite(Number(column_number)) ? Number(column_number) : null;
+
+  const values = [
+    uuidv4(),
+    String(user_id || ""),
+    String(session_id || ""),
+    String(message || ""),
+    stack || null,
+    page || null,
+    page_url || null,
+    page_path || null,
+    source_file || null,
+    normalizedLine,
+    normalizedColumn,
+    error_type || null,
+    user_agent || null,
+    timestamp || null,
+  ];
   await pool.query(query, values);
 }
 

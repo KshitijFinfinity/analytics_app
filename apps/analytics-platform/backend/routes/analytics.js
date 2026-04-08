@@ -27,6 +27,7 @@ const router = express.Router();
 
 const TABLE_EXISTS_TTL_MS = 60 * 1000;
 const tableExistsCache = new Map();
+let ensureFrontendErrorsColumnsPromise = null;
 
 async function tableExists(tableName) {
   const now = Date.now();
@@ -39,6 +40,36 @@ async function tableExists(tableName) {
   const value = Boolean(result.rows[0]?.table_ref);
   tableExistsCache.set(tableName, { value, timestamp: now });
   return value;
+}
+
+async function ensureFrontendErrorsColumns() {
+  if (ensureFrontendErrorsColumnsPromise) {
+    return ensureFrontendErrorsColumnsPromise;
+  }
+
+  ensureFrontendErrorsColumnsPromise = (async () => {
+    const hasFrontendErrors = await tableExists("frontend_errors");
+    if (!hasFrontendErrors) return;
+
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS page_url TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS page_path TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS source_file TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS line_number INTEGER`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS column_number INTEGER`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS error_type TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS user_agent TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS resolved BOOLEAN NOT NULL DEFAULT FALSE`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS resolved_by TEXT`);
+    await pool.query(`ALTER TABLE frontend_errors ADD COLUMN IF NOT EXISTS resolution_note TEXT`);
+  })();
+
+  try {
+    await ensureFrontendErrorsColumnsPromise;
+  } catch (error) {
+    ensureFrontendErrorsColumnsPromise = null;
+    throw error;
+  }
 }
 
 function normalizeJourneyMetric(input) {
@@ -786,8 +817,12 @@ router.get("/frontend-errors/summary", async (_req, res) => {
         replay_sessions: [],
         sessions_affected: 0,
         total_errors: 0,
+        resolved_errors: 0,
+        unresolved_errors: 0,
       });
     }
+
+    await ensureFrontendErrorsColumns();
 
     const [topErrorsResult, frequencyResult, sessionsResult, replaySessionsResult] = await Promise.all([
       pool.query(`
@@ -812,7 +847,9 @@ router.get("/frontend-errors/summary", async (_req, res) => {
       pool.query(`
         SELECT
           COUNT(DISTINCT session_id)::int AS sessions_affected,
-          COUNT(*)::int AS total_errors
+          COUNT(*)::int AS total_errors,
+          COUNT(*) FILTER (WHERE resolved = TRUE)::int AS resolved_errors,
+          COUNT(*) FILTER (WHERE resolved = FALSE)::int AS unresolved_errors
         FROM frontend_errors
       `),
       pool.query(`
@@ -835,10 +872,207 @@ router.get("/frontend-errors/summary", async (_req, res) => {
       replay_sessions: replaySessionsResult.rows,
       sessions_affected: Number(sessionsResult.rows[0]?.sessions_affected || 0),
       total_errors: Number(sessionsResult.rows[0]?.total_errors || 0),
+      resolved_errors: Number(sessionsResult.rows[0]?.resolved_errors || 0),
+      unresolved_errors: Number(sessionsResult.rows[0]?.unresolved_errors || 0),
     });
   } catch (error) {
     console.error("Frontend error summary query error:", error.message);
     return res.status(500).json({ error: "Failed to fetch frontend error summary" });
+  }
+});
+
+router.get("/frontend-errors/events", async (req, res) => {
+  try {
+    const hasFrontendErrors = await tableExists("frontend_errors");
+    if (!hasFrontendErrors) {
+      return res.json({ by_page: [], events: [] });
+    }
+
+    await ensureFrontendErrorsColumns();
+
+    const requestedLimit = Number(req.query.limit || 120);
+    const limit = Number.isFinite(requestedLimit)
+      ? Math.min(Math.max(requestedLimit, 20), 500)
+      : 120;
+    const statusFilter = String(req.query.status || "all").trim().toLowerCase();
+    const whereResolvedSql =
+      statusFilter === "resolved"
+        ? "WHERE resolved = TRUE"
+        : statusFilter === "unresolved"
+        ? "WHERE resolved = FALSE"
+        : "";
+
+    const [byPageResult, eventsResult] = await Promise.all([
+      pool.query(
+        `
+          SELECT
+            COALESCE(
+              NULLIF(TRIM(page_path), ''),
+              NULLIF(TRIM(page), ''),
+              NULLIF(TRIM(page_url), ''),
+              '(unknown)'
+            ) AS page,
+            COUNT(*)::int AS count
+          FROM frontend_errors
+          ${whereResolvedSql}
+          GROUP BY 1
+          ORDER BY count DESC, page ASC
+          LIMIT 20
+        `
+      ),
+      pool.query(
+        `
+          SELECT
+            id,
+            user_id,
+            session_id,
+            message,
+            stack,
+            COALESCE(NULLIF(TRIM(page_path), ''), NULLIF(TRIM(page), ''), '(unknown)') AS page,
+            COALESCE(NULLIF(TRIM(page_url), ''), NULL) AS page_url,
+            COALESCE(NULLIF(TRIM(source_file), ''), NULL) AS source,
+            line_number AS line,
+            column_number AS column,
+            COALESCE(NULLIF(TRIM(error_type), ''), 'Error') AS error_type,
+            COALESCE(NULLIF(TRIM(user_agent), ''), NULL) AS user_agent,
+            COALESCE(resolved, FALSE) AS resolved,
+            resolved_at,
+            COALESCE(NULLIF(TRIM(resolved_by), ''), NULL) AS resolved_by,
+            COALESCE(NULLIF(TRIM(resolution_note), ''), NULL) AS resolution_note,
+            timestamp,
+            created_at
+          FROM frontend_errors
+          ${whereResolvedSql}
+          ORDER BY COALESCE(timestamp, created_at) DESC
+          LIMIT $1
+        `,
+        [limit]
+      ),
+    ]);
+
+    return res.json({
+      by_page: byPageResult.rows,
+      events: eventsResult.rows,
+    });
+  } catch (error) {
+    console.error("Frontend error events query error:", error.message);
+    return res.status(500).json({ error: "Failed to fetch frontend error events" });
+  }
+});
+
+router.get("/frontend-errors/:id/logs", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      return res.status(400).json({ error: "Error id is required" });
+    }
+
+    await ensureFrontendErrorsColumns();
+
+    const primaryResult = await pool.query(
+      `
+        SELECT
+          id,
+          user_id,
+          session_id,
+          message,
+          stack,
+          COALESCE(NULLIF(TRIM(page_path), ''), NULLIF(TRIM(page), ''), '(unknown)') AS page,
+          COALESCE(NULLIF(TRIM(page_url), ''), NULL) AS page_url,
+          COALESCE(NULLIF(TRIM(source_file), ''), NULL) AS source,
+          line_number AS line,
+          column_number AS column,
+          COALESCE(NULLIF(TRIM(error_type), ''), 'Error') AS error_type,
+          COALESCE(NULLIF(TRIM(user_agent), ''), NULL) AS user_agent,
+          COALESCE(resolved, FALSE) AS resolved,
+          resolved_at,
+          COALESCE(NULLIF(TRIM(resolved_by), ''), NULL) AS resolved_by,
+          COALESCE(NULLIF(TRIM(resolution_note), ''), NULL) AS resolution_note,
+          timestamp,
+          created_at
+        FROM frontend_errors
+        WHERE id = $1
+        LIMIT 1
+      `,
+      [id]
+    );
+
+    if (primaryResult.rows.length === 0) {
+      return res.status(404).json({ error: "Error log not found" });
+    }
+
+    const primary = primaryResult.rows[0];
+
+    const relatedResult = await pool.query(
+      `
+        SELECT
+          id,
+          session_id,
+          user_id,
+          COALESCE(NULLIF(TRIM(page_path), ''), NULLIF(TRIM(page), ''), '(unknown)') AS page,
+          COALESCE(NULLIF(TRIM(source_file), ''), NULL) AS source,
+          line_number AS line,
+          column_number AS column,
+          COALESCE(resolved, FALSE) AS resolved,
+          COALESCE(timestamp, created_at) AS seen_at
+        FROM frontend_errors
+        WHERE message = $1
+        ORDER BY COALESCE(timestamp, created_at) DESC
+        LIMIT 15
+      `,
+      [String(primary.message || "")]
+    );
+
+    return res.json({
+      event: primary,
+      related_events: relatedResult.rows,
+    });
+  } catch (error) {
+    console.error("Frontend error logs query error:", error.message);
+    return res.status(500).json({ error: "Failed to fetch frontend error logs" });
+  }
+});
+
+router.patch("/frontend-errors/:id/resolve", async (req, res) => {
+  try {
+    const id = String(req.params.id || "").trim();
+    if (!id) {
+      return res.status(400).json({ error: "Error id is required" });
+    }
+
+    await ensureFrontendErrorsColumns();
+
+    const resolved = req.body?.resolved !== false;
+    const resolvedBy = String(req.body?.resolved_by || "dev-team").trim() || "dev-team";
+    const resolutionNote = String(req.body?.resolution_note || "").trim() || null;
+
+    const result = await pool.query(
+      `
+        UPDATE frontend_errors
+        SET
+          resolved = $2,
+          resolved_at = CASE WHEN $2 THEN NOW() ELSE NULL END,
+          resolved_by = CASE WHEN $2 THEN $3 ELSE NULL END,
+          resolution_note = CASE WHEN $2 THEN $4 ELSE NULL END
+        WHERE id = $1
+        RETURNING
+          id,
+          COALESCE(resolved, FALSE) AS resolved,
+          resolved_at,
+          COALESCE(NULLIF(TRIM(resolved_by), ''), NULL) AS resolved_by,
+          COALESCE(NULLIF(TRIM(resolution_note), ''), NULL) AS resolution_note
+      `,
+      [id, resolved, resolvedBy, resolutionNote]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: "Error event not found" });
+    }
+
+    return res.json({ success: true, event: result.rows[0] });
+  } catch (error) {
+    console.error("Frontend error resolve update failed:", error.message);
+    return res.status(500).json({ error: "Failed to update error resolution state" });
   }
 });
 

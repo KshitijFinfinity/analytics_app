@@ -323,6 +323,14 @@
       }
     }
 
+    function safeGetUserAgent() {
+      try {
+        return window.navigator.userAgent || "";
+      } catch (_err) {
+        return "";
+      }
+    }
+
     function getDeviceType() {
       var width = window.innerWidth || 0;
       if (width < 768) return "mobile";
@@ -631,12 +639,21 @@
       if (!payload || !payload.message) return;
 
       try {
+        var normalizedLine = Number(payload.line);
+        var normalizedColumn = Number(payload.column);
         var body = JSON.stringify({
           user_id: userId,
           session_id: sessionId,
           message: String(payload.message || "Unknown frontend error"),
           stack: payload.stack ? String(payload.stack) : null,
-          page: safeGetPathname(),
+          page: payload.page ? String(payload.page) : safeGetPathname(),
+          page_path: safeGetPathname(),
+          page_url: safeGetHref(),
+          source: payload.source ? String(payload.source) : null,
+          line: Number.isFinite(normalizedLine) ? Math.trunc(normalizedLine) : null,
+          column: Number.isFinite(normalizedColumn) ? Math.trunc(normalizedColumn) : null,
+          error_type: payload.error_type ? String(payload.error_type) : null,
+          user_agent: safeGetUserAgent(),
           timestamp: new Date(now()).toISOString(),
         });
 
@@ -1082,6 +1099,10 @@
         sendFrontendError({
           message: e && e.message,
           stack: e && e.error && e.error.stack,
+          source: e && e.filename,
+          line: e && e.lineno,
+          column: e && e.colno,
+          error_type: (e && e.error && e.error.name) || "Error",
         });
         track("error", {
           message: e && e.message,
@@ -1099,6 +1120,10 @@
         sendFrontendError({
           message: (reason && reason.message) || (typeof reason === "string" ? reason : "Unhandled promise rejection"),
           stack: reason && reason.stack,
+          source: (reason && reason.fileName) || null,
+          line: reason && reason.lineNumber,
+          column: reason && reason.columnNumber,
+          error_type: (reason && reason.name) || "UnhandledPromiseRejection",
         });
         track("promise_error", {
           message: typeof reason === "string" ? reason : (reason && reason.message) || String(reason),

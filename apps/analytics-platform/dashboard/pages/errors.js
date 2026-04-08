@@ -12,12 +12,25 @@ import { Badge } from "@/components/ui/Badge";
 export default function ErrorsPage() {
   const { resolvedRange } = useWorkspace();
   const { addWidgetToDashboard } = useDashboard();
-  const [summary, setSummary] = useState({ top_errors: [], frequency: [], replay_sessions: [], sessions_affected: 0, total_errors: 0 });
+  const [summary, setSummary] = useState({
+    top_errors: [],
+    frequency: [],
+    replay_sessions: [],
+    sessions_affected: 0,
+    total_errors: 0,
+    resolved_errors: 0,
+    unresolved_errors: 0,
+  });
   const [eventsPayload, setEventsPayload] = useState({ by_page: [], events: [] });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
+  const [actionLoadingId, setActionLoadingId] = useState("");
+  const [logsLoadingId, setLogsLoadingId] = useState("");
+  const [logsModal, setLogsModal] = useState({ open: false, event: null, related_events: [] });
+  const [toast, setToast] = useState("");
   const itemsPerPage = 8;
 
   const topErrors = useMemo(
@@ -49,8 +62,49 @@ export default function ErrorsPage() {
     [eventsPayload.by_page]
   );
 
-  const replaySessions = useMemo(() => summary.replay_sessions || [], [summary.replay_sessions]);
   const errorEvents = useMemo(() => eventsPayload.events || [], [eventsPayload.events]);
+
+  async function copyDebugPayload(event) {
+    const payload = {
+      id: event.id,
+      message: event.message,
+      error_type: event.error_type,
+      page: event.page,
+      page_url: event.page_url,
+      source: event.source,
+      line: event.line,
+      column: event.column,
+      stack: event.stack,
+      user_id: event.user_id,
+      session_id: event.session_id,
+      user_agent: event.user_agent,
+      resolved: Boolean(event.resolved),
+      resolved_by: event.resolved_by || null,
+      resolved_at: event.resolved_at || null,
+      resolution_note: event.resolution_note || null,
+      seen_at: event.timestamp || event.created_at || null,
+    };
+
+    const text = JSON.stringify(payload, null, 2);
+    await navigator.clipboard.writeText(text);
+    setToast("Debug payload copied");
+  }
+
+  async function loadErrorLogs(eventId) {
+    setLogsLoadingId(eventId);
+    try {
+      const payload = await fetchAnalytics(`/frontend-errors/${encodeURIComponent(eventId)}/logs`, {
+        skipCache: true,
+      });
+      setLogsModal({
+        open: true,
+        event: payload?.event || null,
+        related_events: Array.isArray(payload?.related_events) ? payload.related_events : [],
+      });
+    } finally {
+      setLogsLoadingId("");
+    }
+  }
 
   function addErrorWidget({ title, chartType, data, description }) {
     addWidgetToDashboard({
@@ -64,42 +118,92 @@ export default function ErrorsPage() {
     });
   }
 
-  useEffect(() => {
-    async function loadErrorSummary() {
-      try {
-        setLoading(true);
-        setError("");
+  async function refreshErrors() {
+    try {
+      setLoading(true);
+      setError("");
 
-        const [summaryPayload, eventsData] = await Promise.all([
-          fetchAnalytics("/frontend-errors/summary").catch(() => ({
-            top_errors: [],
-            frequency: [],
-            replay_sessions: [],
-            sessions_affected: 0,
-            total_errors: 0,
-          })),
-          fetchAnalytics(`/frontend-errors/events?${toQuery({ limit: 120 })}`).catch(() => ({ by_page: [], events: [] })),
-        ]);
+      const [summaryPayload, eventsData] = await Promise.all([
+        fetchAnalytics("/frontend-errors/summary", { skipCache: true }).catch(() => ({
+          top_errors: [],
+          frequency: [],
+          replay_sessions: [],
+          sessions_affected: 0,
+          total_errors: 0,
+          resolved_errors: 0,
+          unresolved_errors: 0,
+        })),
+        fetchAnalytics(
+          `/frontend-errors/events?${toQuery({ limit: 120, status: statusFilter })}`,
+          { skipCache: true }
+        ).catch(() => ({ by_page: [], events: [] })),
+      ]);
 
-        setSummary(summaryPayload || { top_errors: [], frequency: [], replay_sessions: [], sessions_affected: 0, total_errors: 0 });
-        setEventsPayload(eventsData || { by_page: [], events: [] });
-      } catch (err) {
-        setError(err.message || "Unable to load errors summary.");
-      } finally {
-        setLoading(false);
-      }
+      setSummary(
+        summaryPayload || {
+          top_errors: [],
+          frequency: [],
+          replay_sessions: [],
+          sessions_affected: 0,
+          total_errors: 0,
+          resolved_errors: 0,
+          unresolved_errors: 0,
+        }
+      );
+      setEventsPayload(eventsData || { by_page: [], events: [] });
+    } catch (err) {
+      setError(err.message || "Unable to load errors summary.");
+    } finally {
+      setLoading(false);
     }
+  }
 
-    loadErrorSummary();
-  }, [resolvedRange.endDate, resolvedRange.startDate]);
+  async function toggleResolve(eventItem) {
+    if (!eventItem?.id) return;
+
+    const markResolved = !Boolean(eventItem.resolved);
+    setActionLoadingId(eventItem.id);
+    try {
+      await fetchAnalytics(`/frontend-errors/${encodeURIComponent(eventItem.id)}/resolve`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          resolved: markResolved,
+          resolved_by: "dashboard_user",
+          resolution_note: markResolved ? "Resolved from dashboard" : "",
+        }),
+        skipCache: true,
+      });
+
+      setToast(markResolved ? "Error marked as resolved" : "Error reopened");
+      await refreshErrors();
+    } catch (err) {
+      setError(err.message || "Could not update error state.");
+    } finally {
+      setActionLoadingId("");
+    }
+  }
+
+  useEffect(() => {
+    refreshErrors();
+  }, [resolvedRange.endDate, resolvedRange.startDate, statusFilter]);
 
   const filteredEvents = useMemo(() => {
     return errorEvents.filter(event => 
       (event.message || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
       (event.page || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (event.user_id || "").toLowerCase().includes(searchTerm.toLowerCase())
+      (event.user_id || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.error_type || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.source || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (event.resolution_note || "").toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [errorEvents, searchTerm]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(""), 2200);
+    return () => window.clearTimeout(id);
+  }, [toast]);
 
   const paginatedEvents = useMemo(() => {
     const start = (currentPage - 1) * itemsPerPage;
@@ -117,8 +221,42 @@ export default function ErrorsPage() {
 
       <section className="mx-auto max-w-[1300px] px-4 sm:px-6 lg:px-8 space-y-6">
         {error ? <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div> : null}
+        {toast ? (
+          <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+            {toast}
+          </div>
+        ) : null}
 
-        <div className="grid gap-6 md:grid-cols-2">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-slate-500">Status</span>
+            <select
+              value={statusFilter}
+              onChange={(e) => {
+                setStatusFilter(e.target.value);
+                setCurrentPage(1);
+              }}
+              className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            >
+              <option value="all">All errors</option>
+              <option value="unresolved">Unresolved only</option>
+              <option value="resolved">Resolved only</option>
+            </select>
+          </div>
+
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => {
+              setToast("");
+              refreshErrors();
+            }}
+          >
+            Refresh
+          </Button>
+        </div>
+
+        <div className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
           <Card className="flex items-center gap-4 p-6">
             <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50 text-red-600">
                <Icons.Filter className="h-6 w-6" />
@@ -139,6 +277,30 @@ export default function ErrorsPage() {
               <p className="text-sm font-medium text-slate-500">Sessions Affected</p>
               <p className="font-display text-3xl font-semibold text-slate-900 leading-none mt-1">
                 {Number(summary.sessions_affected || 0).toLocaleString()}
+              </p>
+            </div>
+          </Card>
+
+          <Card className="flex items-center gap-4 p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-orange-50 text-orange-600">
+              <Icons.AlertCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Unresolved</p>
+              <p className="font-display text-3xl font-semibold text-slate-900 leading-none mt-1">
+                {Number(summary.unresolved_errors || 0).toLocaleString()}
+              </p>
+            </div>
+          </Card>
+
+          <Card className="flex items-center gap-4 p-6">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+              <Icons.CheckCircle className="h-6 w-6" />
+            </div>
+            <div>
+              <p className="text-sm font-medium text-slate-500">Resolved</p>
+              <p className="font-display text-3xl font-semibold text-slate-900 leading-none mt-1">
+                {Number(summary.resolved_errors || 0).toLocaleString()}
               </p>
             </div>
           </Card>
@@ -293,6 +455,8 @@ export default function ErrorsPage() {
                  <tr>
                     <th className="px-5 py-3 font-medium">Message</th>
                     <th className="px-5 py-3 font-medium">Page</th>
+                    <th className="px-5 py-3 font-medium">Details</th>
+                    <th className="px-5 py-3 font-medium">Status</th>
                     <th className="px-5 py-3 font-medium">User</th>
                     <th className="px-5 py-3 font-medium">Time</th>
                     <th className="px-5 py-3 font-medium text-right">Action</th>
@@ -301,7 +465,7 @@ export default function ErrorsPage() {
                <tbody className="divide-y divide-slate-100 bg-white">
                  {paginatedEvents.length === 0 ? (
                    <tr>
-                     <td colSpan="5" className="px-5 py-12 text-center text-slate-500">
+                     <td colSpan="7" className="px-5 py-12 text-center text-slate-500">
                         {errorEvents.length === 0 ? "No error events available for this period." : "No events match your search criteria."}
                      </td>
                    </tr>
@@ -310,6 +474,33 @@ export default function ErrorsPage() {
                      <tr key={event.id} className="hover:bg-slate-50/50 transition-colors group">
                         <td className="px-5 py-3 font-medium text-slate-900 max-w-[300px] truncate" title={event.message}>{event.message}</td>
                         <td className="px-5 py-3"><Badge variant="default">{event.page}</Badge></td>
+                        <td className="px-5 py-3 text-xs text-slate-500">
+                          <div className="space-y-1">
+                            <div>
+                              <span className="font-medium text-slate-700">Type:</span> {event.error_type || "Error"}
+                            </div>
+                            <div>
+                              <span className="font-medium text-slate-700">Source:</span>{" "}
+                              {event.source
+                                ? `${event.source}${event.line ? `:${event.line}` : ""}${event.column ? `:${event.column}` : ""}`
+                                : "-"}
+                            </div>
+                            <div className="truncate max-w-[260px]" title={event.page_url || ""}>
+                              <span className="font-medium text-slate-700">URL:</span> {event.page_url || "-"}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-5 py-3">
+                          {event.resolved ? (
+                            <Badge variant="default" className="border-emerald-200 bg-emerald-50 text-emerald-700">
+                              Resolved
+                            </Badge>
+                          ) : (
+                            <Badge variant="default" className="border-orange-200 bg-orange-50 text-orange-700">
+                              Open
+                            </Badge>
+                          )}
+                        </td>
                         <td className="px-5 py-3 text-slate-500">{event.user_id ? <span className="text-slate-900 font-mono text-xs bg-slate-100 px-1.5 py-0.5 rounded">{event.user_id}</span> : "-"}</td>
                         <td className="px-5 py-3 text-xs text-slate-400">
                           {event.timestamp || event.created_at
@@ -317,15 +508,57 @@ export default function ErrorsPage() {
                             : "-"}
                         </td>
                         <td className="px-5 py-3 text-right">
-                          {event.session_id ? (
-                            <Link href={`/session-replays?sessionId=${encodeURIComponent(event.session_id)}&userId=${encodeURIComponent(event.user_id || "")}`}>
-                              <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
-                                Replay <Icons.Play className="w-3 h-3 ml-1" />
-                              </Button>
-                            </Link>
-                          ) : (
-                            <span className="text-xs text-slate-300 mr-2">N/A</span>
-                          )}
+                          <div className="inline-flex flex-wrap items-center justify-end gap-1.5">
+                            {event.session_id ? (
+                              <Link href={`/session-replays?sessionId=${encodeURIComponent(event.session_id)}&userId=${encodeURIComponent(event.user_id || "")}`}>
+                                <Button variant="ghost" size="sm">
+                                  Replay <Icons.Play className="w-3 h-3 ml-1" />
+                                </Button>
+                              </Link>
+                            ) : null}
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                copyDebugPayload(event).catch((err) => {
+                                  setError(err.message || "Could not copy debug payload.");
+                                });
+                              }}
+                            >
+                              Copy
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={logsLoadingId === event.id}
+                              onClick={() => {
+                                setError("");
+                                loadErrorLogs(event.id).catch((err) => {
+                                  setError(err.message || "Could not load error logs.");
+                                });
+                              }}
+                            >
+                              {logsLoadingId === event.id ? "Loading" : "Logs"}
+                            </Button>
+
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={actionLoadingId === event.id}
+                              onClick={() => {
+                                setError("");
+                                toggleResolve(event);
+                              }}
+                            >
+                              {actionLoadingId === event.id
+                                ? "Saving"
+                                : event.resolved
+                                ? "Reopen"
+                                : "Resolve"}
+                            </Button>
+                          </div>
                         </td>
                      </tr>
                    ))
@@ -344,6 +577,93 @@ export default function ErrorsPage() {
             </div>
           )}
         </Card>
+
+        {logsModal.open ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/45 p-4">
+            <div className="max-h-[85vh] w-full max-w-4xl overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl">
+              <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                <div>
+                  <h3 className="font-semibold text-slate-900">Error Logs</h3>
+                  <p className="text-xs text-slate-500">Detailed stack trace and recent related occurrences.</p>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLogsModal({ open: false, event: null, related_events: [] })}
+                >
+                  <Icons.X className="h-4 w-4" />
+                </Button>
+              </div>
+
+              <div className="max-h-[70vh] space-y-4 overflow-y-auto p-5">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                  <p className="text-sm font-semibold text-slate-900">{logsModal.event?.message || "(no message)"}</p>
+                  <div className="mt-2 grid gap-2 text-xs text-slate-600 sm:grid-cols-2">
+                    <p><span className="font-semibold text-slate-700">Type:</span> {logsModal.event?.error_type || "Error"}</p>
+                    <p><span className="font-semibold text-slate-700">Page:</span> {logsModal.event?.page || "-"}</p>
+                    <p>
+                      <span className="font-semibold text-slate-700">Source:</span>{" "}
+                      {logsModal.event?.source
+                        ? `${logsModal.event.source}${logsModal.event.line ? `:${logsModal.event.line}` : ""}${logsModal.event.column ? `:${logsModal.event.column}` : ""}`
+                        : "-"}
+                    </p>
+                    <p><span className="font-semibold text-slate-700">Session:</span> {logsModal.event?.session_id || "-"}</p>
+                  </div>
+                  <p className="mt-2 truncate text-xs text-slate-500" title={logsModal.event?.page_url || ""}>
+                    URL: {logsModal.event?.page_url || "-"}
+                  </p>
+                </div>
+
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Stack Trace</h4>
+                  <pre className="max-h-64 overflow-auto rounded-xl border border-slate-200 bg-slate-950 p-4 text-xs leading-relaxed text-slate-100">
+{logsModal.event?.stack || "No stack trace captured for this error."}
+                  </pre>
+                </div>
+
+                <div>
+                  <h4 className="mb-2 text-sm font-semibold text-slate-900">Recent Similar Errors</h4>
+                  <div className="overflow-hidden rounded-xl border border-slate-200">
+                    <table className="w-full text-left text-xs text-slate-600">
+                      <thead className="bg-slate-50 text-slate-500">
+                        <tr>
+                          <th className="px-3 py-2 font-medium">Seen</th>
+                          <th className="px-3 py-2 font-medium">Page</th>
+                          <th className="px-3 py-2 font-medium">Source</th>
+                          <th className="px-3 py-2 font-medium">Status</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100 bg-white">
+                        {logsModal.related_events.length === 0 ? (
+                          <tr>
+                            <td colSpan="4" className="px-3 py-6 text-center text-slate-500">
+                              No related events found.
+                            </td>
+                          </tr>
+                        ) : (
+                          logsModal.related_events.map((item) => (
+                            <tr key={item.id}>
+                              <td className="px-3 py-2">
+                                {item.seen_at ? new Date(item.seen_at).toLocaleString() : "-"}
+                              </td>
+                              <td className="px-3 py-2">{item.page || "-"}</td>
+                              <td className="px-3 py-2">
+                                {item.source
+                                  ? `${item.source}${item.line ? `:${item.line}` : ""}${item.column ? `:${item.column}` : ""}`
+                                  : "-"}
+                              </td>
+                              <td className="px-3 py-2">{item.resolved ? "Resolved" : "Open"}</td>
+                            </tr>
+                          ))
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        ) : null}
       </section>
     </div>
   );

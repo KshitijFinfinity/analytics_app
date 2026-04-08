@@ -22,6 +22,22 @@ const RANGE_OPTIONS = [
   { label: "Custom", value: "custom" },
 ];
 
+const TEST_ERRORS = [
+  () => {
+    throw new Error("Random test error: simulated runtime crash");
+  },
+  () => {
+    const broken = null;
+    broken.run();
+  },
+  () => {
+    throw new TypeError("Random test error: invalid payload type");
+  },
+  () => {
+    throw new RangeError("Random test error: out-of-range value");
+  },
+];
+
 export default function AppShell({ children }) {
   const router = useRouter();
   const [range, setRange] = useState("7d");
@@ -41,6 +57,15 @@ export default function AppShell({ children }) {
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  function triggerRandomError() {
+    const index = Math.floor(Math.random() * TEST_ERRORS.length);
+    const thrower = TEST_ERRORS[index] || TEST_ERRORS[0];
+
+    window.setTimeout(() => {
+      thrower();
+    }, 0);
+  }
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-slate-900 font-sans selection:bg-blue-100 selection:text-blue-900 flex flex-col">
@@ -74,6 +99,14 @@ export default function AppShell({ children }) {
           </div>
 
           <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={triggerRandomError}
+              className="hidden rounded-full border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-semibold text-red-700 transition hover:bg-red-100 md:inline-flex"
+            >
+              Trigger Test Error
+            </button>
+
             <div className="hidden md:flex relative group">
               <Icons.Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
               <input

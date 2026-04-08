@@ -40,13 +40,41 @@ async function createSessionRecording(req, res) {
 
 async function createFrontendError(req, res) {
   try {
-    const { user_id, session_id, message, stack, page, timestamp } = req.body || {};
+    const {
+      user_id,
+      session_id,
+      message,
+      stack,
+      page,
+      page_url,
+      page_path,
+      source,
+      line,
+      column,
+      error_type,
+      user_agent,
+      timestamp,
+    } = req.body || {};
 
     if (!user_id || !session_id || !message) {
       return res.status(400).json({ error: "user_id, session_id and message are required" });
     }
 
-    await sessionMonitoringService.recordFrontendError({ user_id, session_id, message, stack, page, timestamp });
+    await sessionMonitoringService.recordFrontendError({
+      user_id,
+      session_id,
+      message,
+      stack,
+      page,
+      page_url,
+      page_path,
+      source_file: source,
+      line_number: line,
+      column_number: column,
+      error_type,
+      user_agent,
+      timestamp,
+    });
     return res.status(200).json({ success: true });
   } catch (error) {
     console.error("Frontend error ingest failed:", error.message);
