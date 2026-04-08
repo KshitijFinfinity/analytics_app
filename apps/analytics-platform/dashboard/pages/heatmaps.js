@@ -13,6 +13,18 @@ function sleep(delayMs) {
   return new Promise((resolve) => setTimeout(resolve, delayMs));
 }
 
+function getErrorMessageFromPayload(payload, fallback) {
+  if (payload && typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message;
+  }
+
+  if (payload && typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
 
 async function fetchFromBackend(path, options = {}) {
   const timeout = 10000;
@@ -28,7 +40,7 @@ async function fetchFromBackend(path, options = {}) {
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload.error || payload.message || `Server returned ${response.status}`);
+        throw new Error(getErrorMessageFromPayload(payload, `Server returned ${response.status}`));
       }
       return await response.json();
     } catch (error) {

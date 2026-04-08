@@ -31,6 +31,18 @@ function formatDurationMs(value) {
   return `${remSeconds}s`;
 }
 
+function getErrorMessageFromPayload(payload, fallback) {
+  if (payload && typeof payload.message === "string" && payload.message.trim()) {
+    return payload.message;
+  }
+
+  if (payload && typeof payload.error === "string" && payload.error.trim()) {
+    return payload.error;
+  }
+
+  return fallback;
+}
+
 export default function FunnelsPage() {
   const router = useRouter();
   const { addWidgetToDashboard } = useDashboard();
@@ -144,7 +156,7 @@ export default function FunnelsPage() {
     setFunnelError("");
 
     try {
-      const response = await fetch(`${ANALYTICS_BASE}/analytics/funnels/analyze`, {
+      const response = await fetch(`${ANALYTICS_BASE}/api/funnels/analyze`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -158,7 +170,7 @@ export default function FunnelsPage() {
 
       if (!response.ok) {
         const payload = await response.json().catch(() => ({}));
-        throw new Error(payload?.error || `Funnel analysis failed (${response.status})`);
+        throw new Error(getErrorMessageFromPayload(payload, `Funnel analysis failed (${response.status})`));
       }
 
       const metrics = await response.json();
@@ -182,8 +194,8 @@ export default function FunnelsPage() {
 
     const method = funnelBuilder.id ? "PUT" : "POST";
     const url = funnelBuilder.id
-      ? `${ANALYTICS_BASE}/analytics/funnels/${encodeURIComponent(funnelBuilder.id)}`
-      : `${ANALYTICS_BASE}/analytics/funnels`;
+      ? `${ANALYTICS_BASE}/api/funnels/${encodeURIComponent(funnelBuilder.id)}`
+      : `${ANALYTICS_BASE}/api/funnels`;
 
     try {
       const response = await fetch(url, {
@@ -194,7 +206,7 @@ export default function FunnelsPage() {
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(body?.error || `Save failed (${response.status})`);
+        throw new Error(getErrorMessageFromPayload(body, `Save failed (${response.status})`));
       }
 
       const saved = await response.json();
@@ -222,13 +234,13 @@ export default function FunnelsPage() {
 
   async function deleteSavedFunnel(funnelId) {
     try {
-      const response = await fetch(`${ANALYTICS_BASE}/analytics/funnels/${encodeURIComponent(funnelId)}`, {
+      const response = await fetch(`${ANALYTICS_BASE}/api/funnels/${encodeURIComponent(funnelId)}`, {
         method: "DELETE",
       });
 
       if (!response.ok) {
         const body = await response.json().catch(() => ({}));
-        throw new Error(body?.error || `Delete failed (${response.status})`);
+        throw new Error(getErrorMessageFromPayload(body, `Delete failed (${response.status})`));
       }
 
       setSavedFunnels((prev) => prev.filter((item) => item.id !== funnelId));
