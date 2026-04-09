@@ -163,6 +163,7 @@ async function queryJourneyTransitions({ metric, userType, device, country, star
         SELECT
           e.user_id,
           e.session_id,
+          e.project_id,
           COALESCE(NULLIF(TRIM(e.page::text), ''), '(unknown)') AS page,
           e.created_at,
           COALESCE(
@@ -229,6 +230,7 @@ async function queryJourneyTopPaths({ metric, userType, device, country, startDa
         SELECT
           e.user_id,
           e.session_id,
+          e.project_id,
           COALESCE(NULLIF(TRIM(e.page::text), ''), '(unknown)') AS page,
           e.created_at,
           COALESCE(
@@ -278,6 +280,7 @@ async function queryJourneyDropoffs({ metric, userType, device, country, startDa
         SELECT
           e.user_id,
           e.session_id,
+          e.project_id,
           COALESCE(NULLIF(TRIM(e.page::text), ''), '(unknown)') AS page,
           e.created_at,
           COALESCE(
@@ -411,6 +414,7 @@ async function queryJourneyFlow({
         SELECT
           e.user_id,
           e.session_id,
+          e.project_id,
           COALESCE(NULLIF(TRIM(e.page::text), ''), '(unknown)') AS page,
           e.created_at,
           COALESCE(
@@ -1363,6 +1367,7 @@ router.get("/user-journeys/path-sessions", async (req, res) => {
           SELECT
             user_id,
             session_id,
+            project_id,
             COALESCE(NULLIF(TRIM(page::text), ''), '(unknown)') AS page,
             created_at,
             LEAD(COALESCE(NULLIF(TRIM(page::text), ''), '(unknown)')) OVER (
