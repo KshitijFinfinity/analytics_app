@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Icons } from "@/components/ui/Icons";
 import { Badge } from "@/components/ui/Badge";
+import { resolveActiveProjectId, setActiveProjectId } from "@/utils/projectScope";
 
 const TABS = [
   { id: "flow", label: "Flow Map" },
@@ -39,6 +40,19 @@ function percent(value, total) {
 export default function UserJourneysPage() {
   const router = useRouter();
 
+  const [projectId, setProjectId] = useState(resolveActiveProjectId());
+
+  const defaultDateRange = useMemo(() => {
+    const end = new Date();
+    const start = new Date(end);
+    start.setDate(start.getDate() - 7);
+
+    return {
+      startDate: start.toISOString().slice(0, 10),
+      endDate: end.toISOString().slice(0, 10),
+    };
+  }, []);
+
   const [tab, setTab] = useState("flow");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,8 +64,8 @@ export default function UserJourneysPage() {
     userType: "all",
     device: "all",
     country: "all",
-    startDate: "",
-    endDate: "",
+    startDate: defaultDateRange.startDate,
+    endDate: defaultDateRange.endDate,
     depth: 5,
     branchLimit: 5,
     startNode: "",
@@ -74,6 +88,13 @@ export default function UserJourneysPage() {
   const metricLabel = queryState.metric === "users" ? "Unique users" : "Total events";
 
   useEffect(() => {
+    if (!router.isReady) return;
+    const next = resolveActiveProjectId(router.query.project_id);
+    setProjectId(next);
+    setActiveProjectId(next);
+  }, [router.isReady, router.query.project_id]);
+
+  useEffect(() => {
     async function loadJourneyFlow() {
       try {
         setLoading(true);
@@ -86,6 +107,7 @@ export default function UserJourneysPage() {
           userType: queryState.userType,
           device: queryState.device,
           country: queryState.country,
+          project_id: projectId,
           startDate: queryState.startDate,
           endDate: queryState.endDate,
           depth: queryState.depth,
@@ -135,6 +157,7 @@ export default function UserJourneysPage() {
     queryState.userType,
     queryState.device,
     queryState.country,
+    projectId,
     queryState.startDate,
     queryState.endDate,
     queryState.depth,

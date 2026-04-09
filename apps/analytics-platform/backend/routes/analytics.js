@@ -26,6 +26,7 @@ const {
 const router = express.Router();
 
 const TABLE_EXISTS_TTL_MS = 60 * 1000;
+const JOURNEY_DEFAULT_FRESH_WINDOW_DAYS = 7;
 const tableExistsCache = new Map();
 let ensureFrontendErrorsColumnsPromise = null;
 
@@ -93,13 +94,21 @@ function normalizeJourneyMatchMode(input) {
   return value === "starts_from" ? "starts_from" : "contains";
 }
 
+function normalizeJourneyProjectId(input) {
+  const value = String(input || "").trim();
+  if (!value || value === "*" || value.toLowerCase() === "all") {
+    return "";
+  }
+  return value;
+}
+
 function normalizeDateValue(input) {
   const value = String(input || "").trim();
   if (!value) return "";
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : "";
 }
 
-function buildJourneyScopeWhere({ userType, device, country, startDate, endDate }, values) {
+function buildJourneyScopeWhere({ userType, device, country, startDate, endDate, projectId }, values) {
   const clauses = [];
 
   if (userType !== "all") {
@@ -120,6 +129,11 @@ function buildJourneyScopeWhere({ userType, device, country, startDate, endDate 
     clauses.push(`LOWER(country) = $${values.length}`);
   }
 
+  if (projectId) {
+    values.push(projectId);
+    clauses.push(`project_id = $${values.length}`);
+  }
+
   if (startDate) {
     values.push(startDate);
     clauses.push(`created_at >= $${values.length}::date`);
@@ -130,12 +144,16 @@ function buildJourneyScopeWhere({ userType, device, country, startDate, endDate 
     clauses.push(`created_at < ($${values.length}::date + INTERVAL '1 day')`);
   }
 
+  if (!startDate && !endDate) {
+    clauses.push(`created_at >= NOW() - INTERVAL '${JOURNEY_DEFAULT_FRESH_WINDOW_DAYS} days'`);
+  }
+
   return clauses.length > 0 ? `WHERE ${clauses.join(" AND ")}` : "";
 }
 
-async function queryJourneyTransitions({ metric, userType, device, country, startDate, endDate, limit }) {
+async function queryJourneyTransitions({ metric, userType, device, country, startDate, endDate, projectId, limit }) {
   const values = [];
-  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate }, values);
+  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate, projectId }, values);
   values.push(limit);
   const countExpr = metric === "users" ? "COUNT(DISTINCT user_id)::int" : "COUNT(*)::int";
 
@@ -199,9 +217,9 @@ async function queryJourneyTransitions({ metric, userType, device, country, star
   return result.rows;
 }
 
-async function queryJourneyTopPaths({ metric, userType, device, country, startDate, endDate, limit }) {
+async function queryJourneyTopPaths({ metric, userType, device, country, startDate, endDate, projectId, limit }) {
   const values = [];
-  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate }, values);
+  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate, projectId }, values);
   values.push(limit);
   const volumeExpr = metric === "users" ? "COUNT(DISTINCT user_id)::int" : "COUNT(*)::int";
 
@@ -247,9 +265,9 @@ async function queryJourneyTopPaths({ metric, userType, device, country, startDa
   return result.rows;
 }
 
-async function queryJourneyDropoffs({ metric, userType, device, country, startDate, endDate, limit }) {
+async function queryJourneyDropoffs({ metric, userType, device, country, startDate, endDate, projectId, limit }) {
   const values = [];
-  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate }, values);
+  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate, projectId }, values);
   values.push(limit);
   const entrantsExpr = metric === "users" ? "COUNT(DISTINCT user_id)::int" : "COUNT(*)::int";
   const continuedExpr = metric === "users" ? "COUNT(DISTINCT user_id)::int" : "COUNT(*)::int";
@@ -332,16 +350,19 @@ async function queryJourneyDropoffs({ metric, userType, device, country, startDa
   return result.rows;
 }
 
-async function queryJourneyFilterOptions() {
+async function queryJourneyFilterOptions({ projectId, startDate, endDate }) {
+  const values = [];
+  const whereSql = buildJourneyScopeWhere({ userType: "all", device: "", country: "", startDate, endDate, projectId }, values);
   const result = await pool.query(
     `
       SELECT DISTINCT
         COALESCE(NULLIF(TRIM(COALESCE(properties->>'device_type', properties->>'device', properties->'device'->>'type')::text), ''), '(unknown)') AS device_type,
         COALESCE(NULLIF(TRIM(country), ''), '(unknown)') AS country
       FROM events
-      WHERE user_id IS NOT NULL
+      ${whereSql ? `${whereSql} AND user_id IS NOT NULL` : "WHERE user_id IS NOT NULL"}
       LIMIT 5000
-    `
+    `,
+    values
   );
 
   const devices = [];
@@ -364,6 +385,7 @@ async function queryJourneyFlow({
   country,
   startDate,
   endDate,
+  projectId,
   path,
   matchMode,
   depth,
@@ -371,7 +393,7 @@ async function queryJourneyFlow({
   startNode,
 }) {
   const values = [];
-  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate }, values);
+  const whereSql = buildJourneyScopeWhere({ userType, device, country, startDate, endDate, projectId }, values);
 
   const pathValue = normalizeJourneyFilterValue(path);
   const normalizedStartNode = normalizeJourneyFilterValue(startNode);
@@ -1127,19 +1149,21 @@ router.get("/user-journeys", async (req, res) => {
     const userType = normalizeJourneyUserType(req.query.userType);
     const device = normalizeJourneyFilterValue(req.query.device);
     const country = normalizeJourneyFilterValue(req.query.country);
+    const projectId = normalizeJourneyProjectId(req.query.project_id);
     const startDate = normalizeDateValue(req.query.startDate);
     const endDate = normalizeDateValue(req.query.endDate);
 
     const [transitions, topPaths, dropoffs, filterOptions] = await Promise.all([
-      queryJourneyTransitions({ metric, userType, device, country, startDate, endDate, limit }),
-      queryJourneyTopPaths({ metric, userType, device, country, startDate, endDate, limit }),
-      queryJourneyDropoffs({ metric, userType, device, country, startDate, endDate, limit }),
-      queryJourneyFilterOptions(),
+      queryJourneyTransitions({ metric, userType, device, country, startDate, endDate, projectId, limit }),
+      queryJourneyTopPaths({ metric, userType, device, country, startDate, endDate, projectId, limit }),
+      queryJourneyDropoffs({ metric, userType, device, country, startDate, endDate, projectId, limit }),
+      queryJourneyFilterOptions({ projectId, startDate, endDate }),
     ]);
 
     return res.json({
       metric,
       filters_applied: {
+        projectId,
         userType,
         device,
         country,
@@ -1179,6 +1203,7 @@ router.get("/user-journeys/flow", async (req, res) => {
     const userType = normalizeJourneyUserType(req.query.userType);
     const device = normalizeJourneyFilterValue(req.query.device);
     const country = normalizeJourneyFilterValue(req.query.country);
+    const projectId = normalizeJourneyProjectId(req.query.project_id);
     const startDate = normalizeDateValue(req.query.startDate);
     const endDate = normalizeDateValue(req.query.endDate);
     const path = normalizeJourneyFilterValue(req.query.path);
@@ -1195,18 +1220,20 @@ router.get("/user-journeys/flow", async (req, res) => {
         country,
         startDate,
         endDate,
+        projectId,
         path,
         matchMode,
         startNode,
         depth,
         branchLimit,
       }),
-      queryJourneyFilterOptions(),
+      queryJourneyFilterOptions({ projectId, startDate, endDate }),
     ]);
 
     return res.json({
       metric,
       filters_applied: {
+        projectId,
         userType,
         device,
         country,
@@ -1239,6 +1266,7 @@ router.get("/user-journeys/explore", async (req, res) => {
     const userType = normalizeJourneyUserType(req.query.userType);
     const device = normalizeJourneyFilterValue(req.query.device);
     const country = normalizeJourneyFilterValue(req.query.country);
+    const projectId = normalizeJourneyProjectId(req.query.project_id);
     const startDate = normalizeDateValue(req.query.startDate);
     const endDate = normalizeDateValue(req.query.endDate);
     const start = normalizeJourneyFilterValue(req.query.start);
@@ -1252,6 +1280,7 @@ router.get("/user-journeys/explore", async (req, res) => {
       country,
       startDate,
       endDate,
+      projectId,
       limit: 1500,
     });
 
@@ -1259,6 +1288,7 @@ router.get("/user-journeys/explore", async (req, res) => {
     return res.json({
       metric,
       filters_applied: {
+        projectId,
         userType,
         device,
         country,
@@ -1283,6 +1313,9 @@ router.get("/user-journeys/path-sessions", async (req, res) => {
     const path = normalizeJourneyFilterValue(req.query.path);
     const source = normalizeJourneyFilterValue(req.query.source);
     const target = normalizeJourneyFilterValue(req.query.target);
+    const projectId = normalizeJourneyProjectId(req.query.project_id);
+    const startDate = normalizeDateValue(req.query.startDate);
+    const endDate = normalizeDateValue(req.query.endDate);
     const limit = Math.min(Math.max(Number(req.query.limit || 100), 1), 500);
 
     if (!path && !(source && target)) {
@@ -1301,6 +1334,25 @@ router.get("/user-journeys/path-sessions", async (req, res) => {
       values.push(target);
       const targetIndex = values.length;
       whereSql = `page = $${sourceIndex} AND next_page = $${targetIndex}`;
+    }
+
+    if (projectId) {
+      values.push(projectId);
+      whereSql = `${whereSql} AND project_id = $${values.length}`;
+    }
+
+    if (startDate) {
+      values.push(startDate);
+      whereSql = `${whereSql} AND created_at >= $${values.length}::date`;
+    }
+
+    if (endDate) {
+      values.push(endDate);
+      whereSql = `${whereSql} AND created_at < ($${values.length}::date + INTERVAL '1 day')`;
+    }
+
+    if (!startDate && !endDate) {
+      whereSql = `${whereSql} AND created_at >= NOW() - INTERVAL '${JOURNEY_DEFAULT_FRESH_WINDOW_DAYS} days'`;
     }
 
     values.push(limit);
