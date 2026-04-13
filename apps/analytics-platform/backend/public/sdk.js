@@ -261,9 +261,18 @@
       }
     }
 
+    function safeGetStorageItem(storage, key, fallbackValue) {
+      try {
+        var value = storage.getItem(key);
+        return value == null ? fallbackValue : value;
+      } catch (_err) {
+        return fallbackValue;
+      }
+    }
+
     var userId = getOrCreateStorageValue(window.localStorage, USER_ID_KEY, "u");
     var sessionId = getOrCreateStorageValue(window.sessionStorage, SESSION_ID_KEY, "s");
-    var userProperties = safeJsonParse(window.localStorage.getItem("analytics_user_properties"), {});
+    var userProperties = safeJsonParse(safeGetStorageItem(window.localStorage, "analytics_user_properties", ""), {});
     var queue = [];
     var sessionRecordingQueue = [];
     var flushTimer = null;
