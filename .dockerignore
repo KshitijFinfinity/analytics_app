@@ -1,0 +1,9 @@
+**/node_modules
+**/.next
+**/.cache
+**/coverage
+**/npm-debug.log
+**/yarn-error.log
+.git
+.vscode
+*.tgz
